@@ -1,0 +1,5 @@
+resource nulltxt content/
+content nulltxt content/
+locale nulltxt en-US locale/en-US/
+overlay chrome://browser/content/browser.xul chrome://nulltxt/content/browser.xul
+manifest components/nulltxt.manifest

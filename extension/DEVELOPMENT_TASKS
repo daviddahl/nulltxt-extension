@@ -1,0 +1,35 @@
+Nulltxt TODO items:
+-------------------
+
+* Make the demo look good:)
+
+* Error handling: 
+  *** NulltxtMethods: Worker Error: uncaught exception: DataCloneError: The object could not be cloned.
+  ^^ is because the passphrase is incorrect. no visible error displayed to user
+
+* Signature validation  - write a test fo this
+
+* Create a new nulltxt-extension open github
+
+* NotificationBox identification - make sure the UI is placed in the correct NB
+
+* Encrypt should encryptAndSign!
+
+* Build out the decryptAndSign functionality
+
+* Build out "Sign" and "Verify"
+
+* Make sure SHA() works in nulltxt_worker.js
+
+* Enable addressbook, meta tag style key import, also need to segregate keys by origin
+
+* Multiple keys should be generatable per domain, also default naming like: "https://nulltxt.se:81;1" or something like that
+
+* test suite
+
+* One-page web demo:
+  You visit your contact's page, scoop up the public key, write a message, encrypt and send it.
+  You visit your own page, your contact has responded, decrypt the message, read it, reply cycle.
+
+* Signature / Verify demo a'la Korean use-cases
+
