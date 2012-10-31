@@ -1,0 +1,53 @@
+<!doctype html>
+<head>
+  <meta charset="utf-8">
+  <title>nulltxt demo</title>
+  <meta name="description" content="nulltxt demo">
+  <meta name="viewport" 
+        content="width=device-width, initial-scale=1, maximum-scale=1">
+  <script src="js/jquery.js"></script>
+  <script src="js/nulltxt-demo.js"></script>
+  <script>
+    $(document).ready(function(){
+      $("#write-btn").click(write);
+      $("#read-btn").click(read);
+    });
+  </script>
+</head>
+<body>
+<p>
+  <h1>nulltxt demo</h1>
+</p>
+<p>
+  <h2>Encryption</h2>
+  <p>
+    <h3>Cipher Text</h3>
+    <div id="writebox"></div>
+  </p>
+  <p>
+    <h3>Signature</h3>
+    <div id="signature"></div>
+  </p>
+  <p>
+    <a name="raw-object"></a>
+    <pre id="raw-object"></pre>
+  </p>
+  <p>
+    <button id="write-btn">Write Plain Text</button> 
+  </p>
+</p>
+<p>
+  <a name="decryption"></a>
+  <h2>Decryption</h2>
+  <p>
+    <p>(Message will be read in Browser chrome UI)</p>
+    <h3>Signature Verified?</h3>
+    <div id="verified-signature"></div>
+  </p>
+  <p>
+    <a name="read-button"></a>
+    <button id="read-btn">Read Cipher Data</button> 
+  </p>
+</p>
+</body>
+</html>
