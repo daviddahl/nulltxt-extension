@@ -44,7 +44,7 @@ const PASSPHRASE = "32d0f984-841d-4e5e-b8ad-26f4928998c0";
 
 const CONFIG_FILE_PATH = ".nulltxt.json";
 const PROFILE_DIR      = "ProfD";
-const STRINGS_URI      = "chrome://domcrypt/locale/domcrypt.properties";;
+const STRINGS_URI      = "chrome://nulltxt/locale/nulltxt.properties";;
 
 XPCOMUtils.defineLazyGetter(this, "stringBundle", function () {
   return Services.strings.createBundle(STRINGS_URI);
@@ -1840,45 +1840,6 @@ CryptoConsole.prototype = {
     return this.uiDeck;
   },
 
-  makeReadBox: function cc_makeReadBox()
-  {
-    let decryptBox = this.ownerDoc.createElement("vbox");
-    // need textarea and button
-    let readTextBox = this.ownerDoc.createElement("textbox");
-    readTextBox.setAttribute("readonly", true);
-    readTextBox.setAttribute("multiline", true);
-    readTextBox.setAttribute("cols", 80);
-    readTextBox.setAttribute("rows", 10);
-    this.readTextBox = readTextBox;
-    this._readTextBoxID = this.nodeIDPrefix + "read-text-box";
-    let decryptButton = this.ownerDoc.createElement("button");
-    this.decryptButton = decryptButton;
-    decryptButton.setAttribute("label", "Decrypt");
-    let self = this;
-    function decryptFunc(event)
-    {
-      log("decrypt button clicked");
-      // XXX: must get the passphrase from the passphrase cache
-      DOMCryptMethods.decrypt(self._message, PASSPHRASE);
-      event.target.setAttribute("disabled", true);
-    }
-    let decryptScript = "var _scope = {}; "
-                        + "Components.utils."
-                        + "import(\"resource://domcrypt/NulltxtMethods.jsm\", "
-                        + "_scope)";
-    decryptButton.setAttribute("oncommand",
-                               "Components.utils.reportError(\"DECRYPT BUTTON\");");
-    let label = this.ownerDoc.createElement("label");
-    label.setAttribute("control", this._readTextBoxID);
-    label.setAttribute("value", "Encrypted Data");
-    this.readLabel = label;
-    decryptBox.appendChild(label);
-    decryptBox.appendChild(readTextBox);
-    decryptBox.appendChild(decryptButton);
-    this.decryptBox = decryptBox;
-    return decryptBox;
-  },
-
   makeGenericBox: function cc_makeGenericBox(aConfig)
   {
     log("makeGenericBox()");
@@ -1905,7 +1866,7 @@ CryptoConsole.prototype = {
 
     let buttonBox = this.ownerDoc.createElement("hbox");
     buttonBox.setAttribute("flex", 1);
-    
+
     let button = this.ownerDoc.createElement("button");
     button.setAttribute("label", aConfig.buttonLabel);
     button.setAttribute("flex", 1);
