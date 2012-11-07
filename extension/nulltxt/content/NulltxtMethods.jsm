@@ -1162,7 +1162,6 @@ var DOMCryptMethods = {
     // Cu.evalInSandbox("getAddressbookCallback();", sandbox, "1.8", "DOMCrypt", 1);
   },
 
-
   /**
    * Get the configuration file from the filesystem.
    * The file is a JSON file in the user's profile named ".mozCipher.json"
@@ -1182,47 +1181,6 @@ var DOMCryptMethods = {
       aFileCreated.value = false;
     }
     return file;
-  },
-
-  /**
-   * write an updated or new configuration to <profile>/.mozCipher.json
-   *
-   * @param Object aConfigObj
-   * @returns void
-   */
-  writeConfigurationToDisk: function DCM_writeConfigurationToDisk(aConfigObj)
-  {
-    if (!aConfigObj) {
-      throw new Error("aConfigObj is null");
-    }
-
-    let data;
-
-    if (typeof aConfigObj == "object") {
-      // convert aConfigObj to JSON string
-      data = JSON.stringify(aConfigObj);
-    }
-    else {
-      data = aConfigObj;
-    }
-    let foStream = Cc["@mozilla.org/network/file-output-stream;1"].
-      createInstance(Ci.nsIFileOutputStream);
-    let fileCreated = {};
-    try {
-        let file = this.configurationFile(fileCreated);
-    }
-    catch (ex) {
-      log(ex);
-      log(ex.stack);
-    }
-
-    // use 0x02 | 0x10 to open file for appending.
-    foStream.init(file, 0x02 | 0x08 | 0x20, 0666, 0);
-    let converter = Cc["@mozilla.org/intl/converter-output-stream;1"].
-      createInstance(Ci.nsIConverterOutputStream);
-    converter.init(foStream, "UTF-8", 0, 0);
-    converter.writeString(data);
-    converter.close();
   },
 };
 
@@ -1259,46 +1217,6 @@ function initializeDOMCrypt()
     pprint(aData);
     DOMCryptMethods.init(aData, fullPath);
   });
-
-  // NetUtil.asyncFetch(file, function(inputStream, status) {
-  //   if (!Components.isSuccessCode(status)) {
-  //     throw new Error("Cannot access DOMCrypt configuration file");
-  //   }
-  //   var data;
-  //   if (fileCreated.value) {
-  //     data = JSON.stringify(BLANK_CONFIG_OBJECT);
-  //     writeConfigObjectToDisk(data, function writeCallback (status) {
-  //       if (!Components.isSuccessCode(status)) {
-  //         throw new Error("Cannot write config object file to disk");
-  //       }
-  //       let configObj = JSON.parse(data);
-  //       DOMCryptMethods.init(configObj, fullPath);
-  //     });
-  //   }
-  //   else {
-  //     try {
-  //       log("attempt to get the config object....");
-  //       data = NetUtil.readInputStreamToString(inputStream, inputStream.available());
-  //     }
-  //     catch (ex) {
-  //       log("config object is blank!!");
-  //       log(ex);
-  //       log(ex.stack);
-  //       // data is empty!, use a blank object:
-  //       data = BLANK_CONFIG_OBJECT_STR;
-  //     }
-  //     try {
-  //       var configObj = JSON.parse(data);
-  //     }
-  //     catch (ex) {
-  //       var configObj = BLANK_CONFIG_OBJECT;
-  //       DOMCryptMethods.writeConfigurationToDisk(JSON.stringify(configObj));
-  //       log(ex);
-  //       log(ex.stack);
-  //     }
-  //     DOMCryptMethods.init(configObj, fullPath);
-  //   }
-  // });
 }
 
 function writeConfig(aFile, aData, aCallbak) {
@@ -1318,8 +1236,7 @@ function writeConfig(aFile, aData, aCallbak) {
   });
 }
 
-
-// getConfig
+// loadConfig
 function loadConfig(aFile, aCallback) {
   log("loadConfig()");
   try {
@@ -1367,29 +1284,6 @@ function loadConfig(aFile, aCallback) {
       aCallback(null);
     }
   }
-}
-
-/**
- * Write the configuration to disk
- *
- * @param string aData
- * @param function aCallback
- * @returns void
- */
-function writeConfigObjectToDisk(aData, aCallback)
-{
-  let fileCreated = {};
-  let file = DOMCryptMethods.configurationFile(fileCreated);
-
-  let ostream = Cc["@mozilla.org/network/file-output-stream;1"].
-                  createInstance(Ci.nsIFileOutputStream);
-
-  let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
-                    createInstance(Ci.nsIScriptableUnicodeConverter);
-  converter.charset = "UTF-8";
-  let istream = converter.convertToInputStream(aData);
-
-  NetUtil.asyncCopy(istream, ostream, aCallback);
 }
 
 initializeDOMCrypt();
