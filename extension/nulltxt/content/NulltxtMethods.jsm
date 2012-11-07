@@ -1243,47 +1243,62 @@ function initializeDOMCrypt()
 
   let fileCreated = {};
   let file = DOMCryptMethods.configurationFile(fileCreated);
+  if (fileCreated.value) {
+    log("config file created......");
+    let config = {idIndex: {}};
+    DOMCryptMethods.config = config;
+    writeConfig(file, JSON.stringify(config), function writeCallback() {
+      log("Initial config written to disk...");
+      DOMCryptMethods.init(config, fullPath);
+    });
+    return;
+  }
 
-  NetUtil.asyncFetch(file, function(inputStream, status) {
-    if (!Components.isSuccessCode(status)) {
-      throw new Error("Cannot access DOMCrypt configuration file");
-    }
-
-    var data;
-    if (fileCreated.value) {
-      data = JSON.stringify(BLANK_CONFIG_OBJECT);
-      writeConfigObjectToDisk(data, function writeCallback (status) {
-        if (!Components.isSuccessCode(status)) {
-          throw new Error("Cannot write config object file to disk");
-        }
-        let configObj = JSON.parse(data);
-        DOMCryptMethods.init(configObj, fullPath);
-      });
-    }
-    else {
-      try {
-        log("attempt to get the config object....");
-        data = NetUtil.readInputStreamToString(inputStream, inputStream.available());
-      }
-      catch (ex) {
-        log("config object is blank!!");
-        log(ex);
-        log(ex.stack);
-        // data is empty!, use a blank object:
-        data = BLANK_CONFIG_OBJECT_STR;
-      }
-      try {
-        var configObj = JSON.parse(data);
-      }
-      catch (ex) {
-        var configObj = BLANK_CONFIG_OBJECT;
-        DOMCryptMethods.writeConfigurationToDisk(JSON.stringify(configObj));
-        log(ex);
-        log(ex.stack);
-      }
-      DOMCryptMethods.init(configObj, fullPath);
-    }
+  loadConfig(file, function loadCallback(aData) {
+    log("Config Object loaded: ");
+    pprint(aData);
+    DOMCryptMethods.init(aData, fullPath);
   });
+
+  // NetUtil.asyncFetch(file, function(inputStream, status) {
+  //   if (!Components.isSuccessCode(status)) {
+  //     throw new Error("Cannot access DOMCrypt configuration file");
+  //   }
+  //   var data;
+  //   if (fileCreated.value) {
+  //     data = JSON.stringify(BLANK_CONFIG_OBJECT);
+  //     writeConfigObjectToDisk(data, function writeCallback (status) {
+  //       if (!Components.isSuccessCode(status)) {
+  //         throw new Error("Cannot write config object file to disk");
+  //       }
+  //       let configObj = JSON.parse(data);
+  //       DOMCryptMethods.init(configObj, fullPath);
+  //     });
+  //   }
+  //   else {
+  //     try {
+  //       log("attempt to get the config object....");
+  //       data = NetUtil.readInputStreamToString(inputStream, inputStream.available());
+  //     }
+  //     catch (ex) {
+  //       log("config object is blank!!");
+  //       log(ex);
+  //       log(ex.stack);
+  //       // data is empty!, use a blank object:
+  //       data = BLANK_CONFIG_OBJECT_STR;
+  //     }
+  //     try {
+  //       var configObj = JSON.parse(data);
+  //     }
+  //     catch (ex) {
+  //       var configObj = BLANK_CONFIG_OBJECT;
+  //       DOMCryptMethods.writeConfigurationToDisk(JSON.stringify(configObj));
+  //       log(ex);
+  //       log(ex.stack);
+  //     }
+  //     DOMCryptMethods.init(configObj, fullPath);
+  //   }
+  // });
 }
 
 function writeConfig(aFile, aData, aCallbak) {
