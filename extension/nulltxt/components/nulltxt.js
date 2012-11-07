@@ -58,7 +58,8 @@ const kCIPHER_OBJ_TYPE = {
   verify: 0,     // Verify a signature
   read: 1,       // Read an encrypted message
   contacts: 2,   // Add a publickey to the browser contacts
-  write: 3,      // Begin writing plain text to a contact
+  write: 3,      // Begin writing plain text to a contact,
+  keygen: 4,
 };
 
 const kCIPHER_OBJ_FORMAT = {
@@ -147,6 +148,9 @@ Nulltxt.prototype = {
     aCipherObject._windowID = Number(this._id);
     aCipherObject._domReqID = requestID;
     log("window ID: " + aCipherObject._windowID);
+
+    // XXX: make sure any read or write operation also has a "keyID" property in the cipher Object!!
+
     try {
       log("sending async message: Bridge:UI:RegisterCipherObject");
       cpmm.sendAsyncMessage("Bridge:UI:RegisterCipherObject", aCipherObject);
@@ -179,8 +183,7 @@ Nulltxt.prototype = {
       log(ex.stack);
       req = this.takeRequest(msg.requestID);
       log("requestID: " + msg.requestID);
-    }
-    log("\n\nreq\n\n");
+    }    log("\n\nreq\n\n");
     pprint("req: " + req);
 
     // if ((msg.oid != this._id || !req))
@@ -207,7 +210,14 @@ Nulltxt.prototype = {
         };
         _obj = ObjectWrapper.wrap(chromeObj, window);
       }
-      else {
+      else if (msg.action == "keypairGenerated") {
+        let chromeObj = {
+          publicKey: msg.publicKey,
+          id: msg.id,
+        };
+        _obj = ObjectWrapper.wrap(chromeObj, window);
+      }
+      else if (msg.action == "dataHidden") {
         _obj = ObjectWrapper.wrap(msg.cipherMessage, window);
       }
 

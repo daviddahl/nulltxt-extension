@@ -32,6 +32,10 @@ XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
                                    "nsIMessageSender");
 
+XPCOMUtils.defineLazyServiceGetter(this, "uuidSvc",
+                                   "@mozilla.org/uuid-generator;1",
+                                   "nsIUUIDGenerator");
+
 XPCOMUtils.defineLazyGetter(this, "msgmgr", function() {
   return Cc["@mozilla.org/system-message-internal;1"]
          .getService(Ci.nsISystemMessagesInternal);
@@ -44,7 +48,7 @@ const PASSPHRASE = "32d0f984-841d-4e5e-b8ad-26f4928998c0";
 
 const CONFIG_FILE_PATH = ".nulltxt.json";
 const PROFILE_DIR      = "ProfD";
-const STRINGS_URI      = "chrome://nulltxt/locale/nulltxt.properties";;
+const STRINGS_URI      = "chrome://nulltxt/locale/nulltxt.properties";
 
 XPCOMUtils.defineLazyGetter(this, "stringBundle", function () {
   return Services.strings.createBundle(STRINGS_URI);
@@ -145,7 +149,8 @@ var BLANK_CONFIG_OBJECT = {
     pubKey: "",
     salt: "",
     iv: ""
-  }
+  },
+  idIndex: { }
 };
 
 // A blank configuration object as a string
@@ -206,28 +211,28 @@ worker.onmessage = function DCM_worker_onmessage(aEvent) {
       displayDecryptedText(aEvent.data.plainText);
     break;
   case MESSAGE_SIGNED:
-    Callbacks.handleSign(aEvent.data.signature);
+    // Callbacks.handleSign(aEvent.data.signature);
     break;
   case MESSAGE_VERIFIED:
-    Callbacks.handleVerify(aEvent.data.verification);
+    // Callbacks.handleVerify(aEvent.data.verification);
     break;
   case SYM_KEY_GENERATED:
-    Callbacks.handleGenerateSymKey(aEvent.data.wrappedKeyObject);
+    // Callbacks.handleGenerateSymKey(aEvent.data.wrappedKeyObject);
     break;
   case SYM_ENCRYPTED:
-    Callbacks.handleSymEncrypt(aEvent.data.cipherObject);
+    // Callbacks.handleSymEncrypt(aEvent.data.cipherObject);
     break;
   case SYM_DECRYPTED:
-    Callbacks.handleSymDecrypt(aEvent.data.plainText);
+    // Callbacks.handleSymDecrypt(aEvent.data.plainText);
     break;
   case SYM_KEY_WRAPPED:
-    Callbacks.handleWrapSymKey(aEvent.data.cipherObject);
+    // Callbacks.handleWrapSymKey(aEvent.data.cipherObject);
     break;
   case SHA256_COMPLETE:
-    Callbacks.handleSHA256(aEvent.data.hashedString);
+    // Callbacks.handleSHA256(aEvent.data.hashedString);
     break;
   case PASSPHRASE_VERIFIED:
-    Callbacks.handleVerifyPassphrase(aEvent.data.verification);
+    // Callbacks.handleVerifyPassphrase(aEvent.data.verification);
   case WORKER_ERROR:
     if (aEvent.data.notify) {
       notifyUser(aEvent.data);
@@ -290,6 +295,7 @@ var DOMCryptMethods = {
 
   observe: function DCM_observe(aSubject, aTopic, aData)
   {
+    log("observe aSubject: " + aSubject);
     log("observe aTopic: " + aTopic);
     log("observe aData: " + aData);
     switch (aTopic) {
@@ -299,7 +305,23 @@ var DOMCryptMethods = {
         log("... creating CryptoConsole ...");
         this.UIWidgets[aData] = new CryptoConsole(aData);
         this.UIWidgets[aData].updateUI("pubKey", this.config);
-      }
+      } // XXX: else... should change UI to keygen ui
+        // Also, we should fireSuccess for content to get the pubkey
+      break;
+    case "nulltxt-keygen-complete":
+      // XXX: need to tell the DOMRequest to fireSuccess(aPubKey, aKeyID)
+      // get the pubkey data
+      let pubkey = this.getPublicKeyByID(aSubject);
+      this.messageManagers[aSubject].
+        sendAsyncMessage("Bridge:UI:CipherObjectReturned",
+                         { id: aSubject.data, // supportsString
+                           publicKey: pubkey,
+                           action: "keypairGenerated",
+                           metaData: {
+                             windowID: aData,
+                             domReqID: aSubject.data, // supportsString
+                           },
+                         });
       break;
     case "nulltxt-initialization-complete":
       let win = this.getWindowByWindowId(aData);
@@ -314,6 +336,11 @@ var DOMCryptMethods = {
         // XXX: need to actually check the DOM for the UI
         this.UIWidgets[aData] = new CryptoConsole(aData);
         this.UIWidgets[aData].updateUI("init", this.config);
+      }
+      else {
+        log("aSubject" + aSubject);
+        log("updateUI(keygen)");
+        this.UIWidgets[aData].updateUI("keygen", this.config, aSubject);
       }
       break;
     default:
@@ -349,7 +376,6 @@ var DOMCryptMethods = {
   initializeSystem: function DCM_initializeSystem(aMessage, aMsgManager)
   {
     log("initializeSystem()");
-    // pprint(aMessage);
     let self = this;
     let fileCreated = {};
     // Make sure there is a configuration file
@@ -374,32 +400,69 @@ var DOMCryptMethods = {
     }
   },
 
+  doKeygen: function DCM_doKeygen(aMessage)
+  {
+    log("doKeygen()");
+    this.beginGenerateKeypair(aMessage.id);
+  },
+
   completeInitialization: function DCM_completeInitialization(aMessage)
   {
     log("complegteInitialization()");
     log("aMessage.id: " + aMessage.id);
+    log("aMessage.requestID: " + aMessage.requestID);
     // what location are we generating this keypair for?
     let win = this.getWindowByWindowId(aMessage.id);
     log(win);
-    // need to write the config data to disk
-    let config = JSON.parse(BLANK_CONFIG_OBJECT_STR);
-    config.default.created = aMessage.created;
-    config.default.privKey = aMessage.privKey;
-    config.default.pubKey = aMessage.pubKey;
-    config.default.salt = secretDecoderRing.encryptString(aMessage.salt);
-    config.default.iv = secretDecoderRing.encryptString(aMessage.iv);
+    let origin = win.location.host;
+    log(origin);
+    // check for existing config file:
+    // XXX: let's assume a config file exists for now:)
 
-    config.default.host = win.location.host;
-    config.default.protocol = win.location.protocol;
-    config.default.port = win.location.port;
+    if (!this.config[origin]) {
+      this.config[origin] = [];
+    }
 
-    this.config = config;
+    // let uuid = uuidSvc.generateUUID();
+
+    let pubKeyData = {
+      id: aMessage.requestID,
+      created: aMessage.created,
+      privKey: aMessage.privKey,
+      pubKey: aMessage.pubKey,
+      salt: secretDecoderRing.encryptString(aMessage.salt),
+      iv: secretDecoderRing.encryptString(aMessage.iv),
+      host: win.location.host,
+      protocol: win.location.protocol,
+      port: win.location.port,
+    };
+
+    this.config[origin].push(
+      pubKeyData
+    );
+
+    this.config.idIndex[aMessage.requestID] = pubKeyData;
+
+    // // need to write the config data to disk
+    // let config = JSON.parse(BLANK_CONFIG_OBJECT_STR);
+    // config.default.created = aMessage.created;
+    // config.default.privKey = aMessage.privKey;
+    // config.default.pubKey = aMessage.pubKey;
+    // config.default.salt = secretDecoderRing.encryptString(aMessage.salt);
+    // config.default.iv = secretDecoderRing.encryptString(aMessage.iv);
+
+    // config.default.host = win.location.host;
+    // config.default.protocol = win.location.protocol;
+    // config.default.port = win.location.port;
+
+    // this.config = config;
 
     let fileCreated = {};
     let file = DOMCryptMethods.configurationFile(fileCreated);
-    let data = JSON.stringify(config);
+    let data = JSON.stringify(this.config);
     writeConfig(file, data, function () {
-      Services.obs.notifyObservers(null, "nulltxt-initialization-complete",
+      Services.obs.notifyObservers(supportsString(aMessage.requestID),
+                                   "nulltxt-keygen-complete",
                                    aMessage.id);
     });
   },
@@ -408,18 +471,9 @@ var DOMCryptMethods = {
   {
     // need to message child process wih this cipherObject...
     log("returnCipherObject()");
+    pprint(aCipherObject);
+    pprint(aCipherObject.metaData);
     let winID = aCipherObject.metaData.windowID;
-    // this.UIWidgets[winID].writeBox.textBox.
-    //   setAttribute("value", aCipherObject.cipherMessage.content);
-
-    // if (aCipherObject.cipherMessage.signature) {
-    //   this.UIWidgets[winID].writeBox.statusText.
-    //     setAttribute("value", aCipherObject.cipherMessage.signature);
-    //   this.UIWidgets[winID].writeBox.statusLabel.setAttribute("value", "Signature: ");
-    // }
-
-    // this.UIWidgets[winID].writeBox.textBox.setAttribute("readonly", true);
-
 
     log("return Cipher Object");
     this.UIWidgets[winID]._mm.
@@ -445,26 +499,28 @@ var DOMCryptMethods = {
     delete this.UIWidgets[aID];
   },
 
+  messageManagers: {
+
+  },
+
   registerCipherObject: function DCM_registerCipherObject(aMessage, aMsgManager)
   {
     log("REGISTER CIPHER OBJECT");
     pprint(aMessage);
-    log("UIWidgets:::::::::::::::::::");
+
+    // Are we generating a key?
+    if (aMessage.type == "keygen") {
+      this.messageManagers[aMessage._domReqID] = aMsgManager;
+      this.beginGenerateKeypair(aMessage._windowID, aMessage._domReqID);
+      return;
+    }
+
     log(aMessage._windowID + ": " + this.UIWidgets[aMessage._windowID]);
     // see if we have a UI open for the window in question
     if (!this.UIWidgets[aMessage._windowID]) {
       try {
         this.UIWidgets[aMessage._windowID] =
           new CryptoConsole(aMessage._windowID, aMessage._domReqID);
-
-        // try {
-        //   aMsgManager.sendAsyncMessage("Bridge:UI:CipherObjectRegistered",
-        //                                { status: "success" });
-        // }
-        // catch (ex) {
-        //   log(ex);
-        //   log(ex.stack);
-        // }
       }
       catch (ex) {
         log(ex);
@@ -523,6 +579,7 @@ var DOMCryptMethods = {
     }).bind(this));
 
     Services.obs.addObserver(this, "nulltxt-initialization-complete", false);
+    Services.obs.addObserver(this, "nulltxt-keygen-complete", false);
     Services.obs.addObserver(this, "nulltxt-config-loaded", false);
 
     this.config = aConfigObject;
@@ -540,22 +597,17 @@ var DOMCryptMethods = {
 
     this.sandbox = null;
     this.xulWindow = null;
-
-    for (let prop in Callbacks) {
-      Callbacks[prop].callback = null;
-      Callbacks[prop].sandbox = null;
-    }
-    Callbacks = null;
   },
-
-  callbacks: null,
 
   /////////////////////////////////////////////////////////////////////////
   // DOMCrypt API methods exposed via the nsIDOMGlobalPropertyInitializer
   /////////////////////////////////////////////////////////////////////////
 
-  hide: function DCA_hide(aPlainText, aPublicKey, aMetaData)
+  hide: function DCA_hide(aPlainText, aPublicKey, aKeyID, aMetaData)
   {
+    // XXX: make sure the key ID references a key that was created
+    // by the current origin
+
     let passphrase = this.enterPassphrase();
     // let passphrase = this.passphrase;
     log("passphrase: " + passphrase);
@@ -564,14 +616,13 @@ var DOMCryptMethods = {
       log("NO PASSPHRASE... BAILINGING OUT...");
       throw new Error("Nulltxt: No passphrase captured. Fatal error.");
     }
-
-    let userIV = secretDecoderRing.decryptString(this.config.default.iv);
-    let userSalt = secretDecoderRing.decryptString(this.config.default.salt);
-    let userPrivKey = this.config.default.privKey;
-    // let hash = this._SHA256(aPlainTextMessage);
+    let userIV =
+      secretDecoderRing.decryptString(this.config.idIndex[aKeyID].iv);
+    let userSalt =
+      secretDecoderRing.decryptString(this.config.idIndex[aKeyID].salt);
+    let userPrivKey = this.config.idIndex[aKeyID].privKey;
 
     worker.postMessage({ action: HIDE,
-                         // hash: hash,
                          passphrase: passphrase,
                          iv: userIV,
                          salt: userSalt,
@@ -582,17 +633,24 @@ var DOMCryptMethods = {
                        });
   },
 
-  show: function DCA_show(aCipherMessage, aMetaData, aPassphrase)
+  show: function DCA_show(aCipherMessage, aKeyID, aMetaData, aPassphrase)
   {
+    // XXX: make sure the keyID references a key generated by the current origin
+
     log("DCA_show");
     log("metaData: ");
     pprint(aMetaData);
+    log("cipherMessage");
+    pprint(aCipherMessage);
+    log("keyID: " + aKeyID);
 
     let passphrase = aPassphrase || this.enterPassphrase();
 
-    let userIV = secretDecoderRing.decryptString(this.config.default.iv);
-    let userSalt = secretDecoderRing.decryptString(this.config.default.salt);
-    let userPrivKey = this.config.default.privKey;
+    let userIV =
+      secretDecoderRing.decryptString(this.config.idIndex[aKeyID].iv);
+    let userSalt =
+      secretDecoderRing.decryptString(this.config.idIndex[aKeyID].salt);
+    let userPrivKey = this.config.idIndex[aKeyID].privKey;
     let cipherMessage = XPCNativeWrapper.unwrap(aCipherMessage);
 
     worker.postMessage({ action: SHOW,
@@ -617,12 +675,11 @@ var DOMCryptMethods = {
    *
    * @returns void
    */
-  beginGenerateKeypair: function DCM_beginGenerateKeypair(aWindowID)
+  beginGenerateKeypair: function DCM_beginGenerateKeypair(aWindowID, aRequestID)
   {
     // TODO: check if the user already has a keypair and confirm they
     // would like to overwrite it
     log("beginGenerateKeypair()");
-    // Callbacks.register(GENERATE_KEYPAIR, aCallback, aSandbox);
     let win = this.getWindowByWindowId(aWindowID);
     log(win);
     let passphrase = {};
@@ -641,7 +698,7 @@ var DOMCryptMethods = {
                                  null, { value: false });
       if (prompt && passphraseConfirm.value &&
           (passphraseConfirm.value == passphrase.value)) {
-        this.generateKeypair(passphrase.value, aWindowID);
+        this.generateKeypair(passphrase.value, aWindowID, aRequestID);
       }
       else {
         promptSvc.alert(win,
@@ -667,13 +724,16 @@ var DOMCryptMethods = {
    * @param string aPassphrase
    * @returns void
    */
-  generateKeypair: function DCM_generateKeypair(aPassphrase, aWindowID)
+  generateKeypair: function DCM_generateKeypair(aPassphrase, aWindowID, aRequestID)
   {
     log("generateKeypair()");
     log(aWindowID);
+    log(aRequestID);
     worker.postMessage({ action: GENERATE_KEYPAIR,
                          passphrase: aPassphrase,
-                         id: aWindowID });
+                         id: aWindowID,
+                         requestID: aRequestID,
+                       });
     this.passphraseCache.encryptedPassphrase = secretDecoderRing.encryptString(aPassphrase);
     this.passphraseCache.lastEntered = Date.now();
   },
@@ -683,12 +743,43 @@ var DOMCryptMethods = {
    *
    * @returns void
    */
+  // XXX: this is not available from the DOM in nulltxt
   getPublicKey: function DCM_getPublicKey(aCallback, aSandbox)
   {
-    Callbacks.register(GET_PUBLIC_KEY, aCallback, aSandbox);
+    // Callbacks.register(GET_PUBLIC_KEY, aCallback, aSandbox);
     // TODO: need a gatekeeper function/prompt to allow access to your publicKey
     // TODO: looks like we can get this async via FileUtils
-    Callbacks.handleGetPublicKey(this.config.default.pubKey);
+    // Callbacks.handleGetPublicKey(this.config.default.pubKey);
+  },
+
+  getPublicKeyByID: function DCM_getPublicKeyByID(aID)
+  {
+    if (!aID) {
+      throw new Error("getPublicKeyByID: ID argument required");
+    }
+    try {
+      let pubkey = this.config.idIndex[aID].pubKey;
+      return pubkey;
+    }
+    catch (ex) {
+      Cu.reportError("Cannot get public key by ID: " + aID);
+      return null;
+    }
+  },
+
+  getAllKeyDataByID: function DCM_getAllKeyDataByID(aID)
+  {
+    if (!aID) {
+      throw new Error("getAllKeyDataByID: ID argument required");
+    }
+    try {
+      let keydata = this.config.idIndex[aID];
+      return keydata;
+    }
+    catch (ex) {
+      Cu.reportError("Cannot get key data by ID: " + aID);
+      return null;
+    }
   },
 
   /**
@@ -809,7 +900,7 @@ var DOMCryptMethods = {
    */
   verifyPassphrase: function DCM_verifyPassphrase(aCallback, aSandbox)
   {
-    Callbacks.register(VERIFY_PASSPHRASE, aCallback, aSandbox);
+    // Callbacks.register(VERIFY_PASSPHRASE, aCallback, aSandbox);
     let passphrase = this.passphrase;
     let userPrivKey = this.config.default.privKey;
     let userIV = secretDecoderRing.decryptString(this.config.default.iv);
@@ -833,7 +924,7 @@ var DOMCryptMethods = {
    */
   promptDecrypt: function DCM_promptDecrypt(aCipherMessage, aCallback, aSandbox)
   {
-    Callbacks.register(DECRYPT, aCallback, aSandbox);
+    // Callbacks.register(DECRYPT, aCallback, aSandbox);
     let passphrase = this.passphrase;
 
     if (passphrase) {
@@ -902,7 +993,7 @@ var DOMCryptMethods = {
   function
   DCM_verify(aPlainTextMessage, aSignature, aPublicKey, aCallback, aSandbox)
   {
-    Callbacks.register(VERIFY, aCallback, aSandbox);
+    // Callbacks.register(VERIFY, aCallback, aSandbox);
     let hash = this._SHA256(aPlainTextMessage);
 
     // Create a hash in the worker for verification
@@ -915,7 +1006,7 @@ var DOMCryptMethods = {
 
   generateSymKey: function DCM_generateSymKey(aCallback, aPublicKey, aSandbox)
   {
-    Callbacks.register(GENERATE_SYM_KEY, aCallback, aSandbox);
+    // Callbacks.register(GENERATE_SYM_KEY, aCallback, aSandbox);
 
     var pubKey;
     if (!aPublicKey) {
@@ -934,7 +1025,7 @@ var DOMCryptMethods = {
   {
     // unwrap then re-wrap the symmetric key inside aCipherObject, return a new
     // cipherObject that can be unlocked by another keypair
-    Callbacks.register(WRAP_SYM_KEY, aCallback, aSandbox);
+    // Callbacks.register(WRAP_SYM_KEY, aCallback, aSandbox);
 
     let passphrase = this.passphrase;
     var userIV = secretDecoderRing.decryptString(this.config.default.iv);
@@ -971,7 +1062,7 @@ var DOMCryptMethods = {
    */
   symEncrypt: function DCM_SymEncrypt(aPlainText, aPublicKey, aCallback, aSandbox)
   {
-    Callbacks.register(SYM_ENCRYPT, aCallback, aSandbox);
+    // Callbacks.register(SYM_ENCRYPT, aCallback, aSandbox);
 
     var pubKey;
     if (!aPublicKey) {
@@ -995,7 +1086,7 @@ var DOMCryptMethods = {
     var userSalt = secretDecoderRing.decryptString(this.config.default.salt);
     var userPrivKey = this.config.default.privKey;
 
-    Callbacks.register(SYM_DECRYPT, aCallback, aSandbox);
+    // Callbacks.register(SYM_DECRYPT, aCallback, aSandbox);
 
     var cipherObj = XPCNativeWrapper.unwrap(aCipherObject);
 
@@ -1053,22 +1144,22 @@ var DOMCryptMethods = {
    */
   SHA256: function DCM_SHA256(aPlainText, aCallback, aSandbox)
   {
-    Callbacks.register(SHA256, aCallback, aSandbox);
-    let hash = this._SHA256(aPlainText);
-    let callback = Callbacks.makeSHA256Callback(hash);
-    let sandbox = Callbacks.SHA256.sandbox;
-    sandbox.importFunction(callback, "SHA256Callback");
-    Cu.evalInSandbox("SHA256Callback();", sandbox, "1.8", "DOMCrypt", 1);
+    // Callbacks.register(SHA256, aCallback, aSandbox);
+    // let hash = this._SHA256(aPlainText);
+    // let callback = Callbacks.makeSHA256Callback(hash);
+    // let sandbox = Callbacks.SHA256.sandbox;
+    // sandbox.importFunction(callback, "SHA256Callback");
+    // Cu.evalInSandbox("SHA256Callback();", sandbox, "1.8", "DOMCrypt", 1);
   },
 
   getAddressbook: function DCM_getAddressbook(aAddressbook, aCallback, aSandbox)
   {
     // XXX: we are faking async here
-    Callbacks.register(GET_ADDRESSBOOK, aCallback, aSandbox);
-    let callback = Callbacks.makeGetAddressbookCallback(aAddressbook);
-    let sandbox = Callbacks.getAddressbook.sandbox;
-    sandbox.importFunction(callback, "getAddressbookCallback");
-    Cu.evalInSandbox("getAddressbookCallback();", sandbox, "1.8", "DOMCrypt", 1);
+    // Callbacks.register(GET_ADDRESSBOOK, aCallback, aSandbox);
+    // let callback = Callbacks.makeGetAddressbookCallback(aAddressbook);
+    // let sandbox = Callbacks.getAddressbook.sandbox;
+    // sandbox.importFunction(callback, "getAddressbookCallback");
+    // Cu.evalInSandbox("getAddressbookCallback();", sandbox, "1.8", "DOMCrypt", 1);
   },
 
 
@@ -1134,465 +1225,6 @@ var DOMCryptMethods = {
     converter.close();
   },
 };
-
-/**
- * Creates a unique callback registry for each DOMCryptMethods object
- *
- * @returns Object
- */
-function GenerateCallbackObject() { }
-
-GenerateCallbackObject.prototype = {
-
-  encrypt: { callback: null, sandbox: null },
-
-  decrypt: { callback: null, sandbox: null },
-
-  generateKeypair: { callback: null, sandbox: null },
-
-  getPublicKey: { callback: null, sandbox: null },
-
-  sign: { callback: null, sandbox: null },
-
-  verify: { callback: null, sandbox: null },
-
-  verifyPassphrase: { callback: null, sandbox: null },
-
-  generateSymKey: { callback: null, sandbox: null },
-
-  symEncrypt: { callback: null, sandbox: null },
-
-  symDecrypt: { callback: null, sandbox: null },
-
-  wrapSymKey: { callback: null, sandbox: null },
-
-  SHA256: { callback: null, sandbox: null },
-
-  getAddressbook: { callback: null, sandbox: null },
-
-  sandbox: null,
-
-  /**
-   * Register a callback for any API method
-   *
-   * @param string aLabel
-   * @param function aCallback
-   * @param Object aSandbox
-   * @returns void
-   */
-  register: function GCO_register(aLabel, aCallback, aSandbox)
-  {
-    // we need a 'fall back' sandbox for prompts, etc. when we are unsure what
-    // method is in play
-    this.sandbox = aSandbox;
-
-    this[aLabel].callback = aCallback;
-    this[aLabel].sandbox = aSandbox;
-  },
-
-  /**
-   * wrap the content-provided script in order to make it easier
-   * to import and run in the sandbox
-   *
-   * @param string aPubKey
-   * @returns function
-   */
-  makeGenerateKeypairCallback:
-  function DA_makeGenerateKeypairCallback(aPubKey)
-  {
-    let self = this;
-    let callback = function generateKeypair_callback()
-                   {
-                     self.generateKeypair.callback(aPubKey);
-                   };
-    return callback;
-  },
-
-  /**
-   * Wraps the content callback script, imports it into the sandbox and
-   * calls it in the sandbox
-   * @param Object aKeypair
-   * @returns void
-   */
-  handleGenerateKeypair: function GCO_handleGenerateKeypair(aKeypairData)
-  {
-    // set memory config data from generateKeypair
-    DOMCryptMethods.config.default.pubKey = aKeypairData.pubKey;
-    DOMCryptMethods.config.default.privKey = aKeypairData.privKey;
-    DOMCryptMethods.config.default.created = aKeypairData.created;
-    DOMCryptMethods.config.default.iv =
-      secretDecoderRing.encryptString(aKeypairData.iv);
-    DOMCryptMethods.config.default.salt =
-      secretDecoderRing.encryptString(aKeypairData.salt);
-
-    // make a string of the config
-    let strConfig = JSON.stringify(DOMCryptMethods.config);
-    // write the new config to disk
-    DOMCryptMethods.writeConfigurationToDisk(strConfig);
-    // XXXddahl: This function is not working properly
-    // writeConfigObjectToDisk(strConfig);
-
-    let sandbox = this.generateKeypair.sandbox;
-    let callback = this.makeGenerateKeypairCallback(aKeypairData.pubKey);
-    sandbox.importFunction(callback, "generateKeypairCallback");
-    Cu.evalInSandbox("generateKeypairCallback();", sandbox, "1.8", "DOMCrypt", 1);
-  },
-
-  /**
-   * Create the callback that will be called after getting the publicKey
-   *
-   * @param string aPublicKey
-   * @returns void
-   */
-  makeGetPublicKeyCallback: function GCO_makeGetPublicKeyCallback(aPublicKey)
-  {
-    let self = this;
-    let callback = function getPublicKey_callback()
-                   {
-                     self.getPublicKey.callback(aPublicKey);
-                   };
-    return callback;
-  },
-
-  /**
-   * Wraps the content callback script which deals with getting the publicKey
-   *
-   * @param string aPublicKey
-   * @returns void
-   */
-  handleGetPublicKey: function GCO_handleGetPublicKey(aPublicKey)
-  {
-    let callback = this.makeGetPublicKeyCallback(aPublicKey);
-    let sandbox = this.getPublicKey.sandbox;
-    sandbox.importFunction(callback, "getPublicKeyCallback");
-    Cu.evalInSandbox("getPublicKeyCallback();",
-                     sandbox, "1.8", "DOMCrypt", 1);
-  },
-
-  /**
-   * wrap the content-provided encrypt callback script in order to make it easier
-   * to import and run in the sandbox
-   *
-   * @param Object aCipherMessage
-   * @returns JS function
-   */
-  makeEncryptCallback:
-  function DA_encryptCallback(aCipherMessage)
-  {
-    let self = this;
-    let callback = function encrypt_callback()
-                   {
-                     self.encrypt.callback(aCipherMessage);
-                   };
-    return callback;
-  },
-
-  /**
-   * Wraps the content callback script which deals with encrypted message objects
-   *
-   * @param Object aCipherMessage
-   * @returns void
-   */
-  handleEncrypt: function GCO_handleEncrypt(aCipherMessage)
-  {
-    let callback = this.makeEncryptCallback(aCipherMessage);
-    let sandbox = this.encrypt.sandbox;
-    sandbox.importFunction(callback, "encryptCallback");
-    Cu.evalInSandbox("encryptCallback();",
-                     sandbox, "1.8", "DOMCrypt", 1);
-  },
-
-  /**
-   * wrap the content-provided decrypt callback script in order to make it easier
-   * to import and run in the sandbox
-   *
-   * @param string aPlainText
-   * @returns JS function
-   */
-  makeDecryptCallback:
-  function DA_decryptCallback(aPlainText)
-  {
-    let self = this;
-    let callback = function decrypt_callback()
-                   {
-                     self.decrypt.callback(aPlainText);
-                   };
-    return callback;
-  },
-
-  /**
-   * Wraps the content callback script which deals with the decrypted string
-   *
-   * @param string aPlainText
-   * @returns void
-   */
-  handleDecrypt: function GCO_handleDecrypt(aPlainText)
-  {
-    let callback = this.makeDecryptCallback(aPlainText);
-    let sandbox = this.decrypt.sandbox;
-    sandbox.importFunction(callback, "decryptCallback");
-    Cu.evalInSandbox("decryptCallback();",
-                     sandbox, "1.8", "DOMCrypt", 1);
-  },
-
-  /**
-   * Wraps the content callback script which deals with the signature
-   *
-   * @param string aSignature
-   * @returns void
-   */
-  makeSignCallback: function GCO_makeSignCallback(aSignature)
-  {
-    let self = this;
-    let callback = function sign_callback()
-                   {
-                     self.sign.callback(aSignature);
-                   };
-    return callback;
-  },
-
-  /**
-   * Executes the signature callback function in the sandbox
-   *
-   * @param string aSignature
-   * @returns void
-   */
-  handleSign: function GCO_handleSign(aSignature)
-  {
-    let callback = this.makeSignCallback(aSignature);
-    let sandbox = this.sign.sandbox;
-    sandbox.importFunction(callback, "signCallback");
-    Cu.evalInSandbox("signCallback();",
-                     sandbox, "1.8", "DOMCrypt", 1);
-  },
-
-  /**
-   * Wraps the content callback script which deals with the signature verification
-   *
-   * @param boolean aVerification
-   * @returns void
-   */
-  makeVerifyCallback: function GCO_makeVerifyCallback(aVerification)
-  {
-    let self = this;
-    let callback = function verify_callback()
-                   {
-                     self.verify.callback(aVerification);
-                   };
-    return callback;
-  },
-
-  /**
-   * Executes the verification callback function in the sandbox
-   *
-   * @param boolean aVerification
-   * @returns void
-   */
-  handleVerify: function GCO_handleVerify(aVerification)
-  {
-    let callback = this.makeVerifyCallback(aVerification);
-    let sandbox = this.verify.sandbox;
-    sandbox.importFunction(callback, "verifyCallback");
-    Cu.evalInSandbox("verifyCallback();",
-                     sandbox, "1.8", "DOMCrypt", 1);
-  },
-
-  /**
-   * Executes the generateSymKey callback function in the sandbox
-   *
-   * @param boolean aWrappedSymKey
-   * @returns void
-   */
-  makeGenerateSymKeyCallback:
-  function GCO_makeGenerateSymKeyCallback(aWrappedSymKeyObj)
-  {
-    let self = this;
-    let callback = function genSymKey_callback()
-                   {
-                     self.generateSymKey.callback(aWrappedSymKeyObj);
-                   };
-    return callback;
-  },
-
-  /**
-   * Executes the generateSymKey callback function in the sandbox
-   *
-   * @param string aWrappedSymKey
-   * @returns void
-   */
-  handleGenerateSymKey: function GCO_handleGenerateSymKey(aWrappedSymKeyObj)
-  {
-    let callback = this.makeGenerateSymKeyCallback(aWrappedSymKeyObj);
-    let sandbox = this.generateSymKey.sandbox;
-    sandbox.importFunction(callback, "generateSymKeyCallback");
-    Cu.evalInSandbox("generateSymKeyCallback();",
-                     sandbox, "1.8", "DOMCrypt", 1);
-  },
-
-  /**
-   * Wraps the SymEncrypt callback function in the sandbox
-   *
-   * @param object aCipherObject
-   * @returns void
-   */
-  makeSymEncryptCallback:
-  function GCO_makeSymEncryptCallback(aCipherObject)
-  {
-    let self = this;
-    let callback = function makeSymEncrypt_callback()
-                   {
-                     self.symEncrypt.callback(aCipherObject);
-                   };
-    return callback;
-  },
-
-  /**
-   * Executes the SymEncrypt callback function in the sandbox
-   *
-   * @param object aCipherObject
-   * @returns void
-   */
-  handleSymEncrypt: function GCO_handleSymEncryptCallback(aCipherObject)
-  {
-    let callback = this.makeSymEncryptCallback(aCipherObject);
-    let sandbox = this.symEncrypt.sandbox;
-    sandbox.importFunction(callback, "symEncryptCallback");
-    Cu.evalInSandbox("symEncryptCallback();",
-                     sandbox, "1.8", "DOMCrypt", 1);
-  },
-
-
-
-  /**
-   * Wraps the SymDecrypt callback function in the sandbox
-   *
-   * @param string aPlainText
-   * @returns void
-   */
-  makeSymDecryptCallback:
-  function GCO_makeSymDecryptCallback(aPlainText)
-  {
-    let self = this;
-    let callback = function makeSymDecrypt_callback()
-                   {
-                     self.symDecrypt.callback(aPlainText);
-                   };
-    return callback;
-  },
-
-  /**
-   * Executes the SymDecrypt callback function in the sandbox
-   *
-   * @param string aPlainText
-   * @returns void
-   */
-  handleSymDecrypt: function GCO_handleSymDecrypt(aPlainText)
-  {
-    let callback = this.makeSymDecryptCallback(aPlainText);
-    let sandbox = this.symDecrypt.sandbox;
-    sandbox.importFunction(callback, "symDecryptCallback");
-    Cu.evalInSandbox("symDecryptCallback();",
-                     sandbox, "1.8", "DOMCrypt", 1);
-  },
-
-  /**
-   * Wraps the wrapSymKey callback function in the sandbox
-   *
-   * @param object aCipherObject
-   * @returns void
-   */
-  makeWrapSymKeyCallback:
-  function GCO_makeWrapSymKeyCallback(aCipherObject)
-  {
-    let self = this;
-    let callback = function makeWrapSymKey_callback()
-                   {
-                     self.wrapSymKey.callback(aCipherObject);
-                   };
-    return callback;
-  },
-
-  /**
-   * Executes the wrapSymKey callback function in the sandbox
-   *
-   * @param object aCipherObject
-   * @returns void
-   */
-  handleWrapSymKey: function GCO_handleWrapSymKey(aCipherObject)
-  {
-    let callback = this.makeWrapSymKeyCallback(aCipherObject);
-    let sandbox = this.wrapSymKey.sandbox;
-    sandbox.importFunction(callback, "wrapSymKeyCallback");
-    Cu.evalInSandbox("wrapSymKeyCallback();",
-                     sandbox, "1.8", "DOMCrypt", 1);
-  },
-
-  /**
-   * Wraps the content callback script which deals with SHA256 hashing
-   *
-   * @param string aHash
-   * @returns void
-   */
-  makeSHA256Callback: function GCO_makeSHA256Callback(aHash)
-  {
-    let callback = function hash256_callback()
-                   {
-                     this.SHA256.callback(aHash);
-                   };
-    return callback.bind(this);
-    // Note: we don't need a handleSHA256Callback function as there is
-    // no round trip to the worker yet, we are using the callback in the
-    // same manner in order to mock an async API for the time being
-  },
-
-  makeGetAddressbookCallback: function GCO_makeGetAddressbookCallback(aAddressbook)
-  {
-    let callback = function _callback()
-                   {
-                     this.getAddressbook.callback(aAddressbook);
-                   };
-    return callback.bind(this);
-    // Note: we don't need a handleGetAddressbookCallback function as there is
-    // no round trip to the worker yet, we are using the callback in the
-    // same manner in order to mock an async API for the time being
-  },
-
-  /**
-   * Wraps the content callback script which deals with passphrase verification
-   *
-   * @param boolean aVerification
-   * @returns void
-   */
-  makeVerifyPassphraseCallback:
-  function GCO_makeVerifyPassphraseCallback(aVerification)
-  {
-    let self = this;
-    let callback = function verify_callback()
-                   {
-                     self.verifyPassphrase.callback(aVerification);
-                   };
-    return callback;
-  },
-
-  /**
-   * Executes the verifyPassphrase callback function in the sandbox
-   *
-   * @param boolean aVerification
-   * @returns void
-   */
-  handleVerifyPassphrase:
-  function GCO_handleVerifyPassphrase(aVerification)
-  {
-    let callback = this.makeVerifyPassphraseCallback(aVerification);
-    let sandbox = this.verifyPassphrase.sandbox;
-    sandbox.importFunction(callback, "verifyPassphraseCallback");
-    Cu.evalInSandbox("verifyPassphraseCallback();",
-                     sandbox, "1.8", "DOMCrypt", 1);
-  },
-};
-
-
-var Callbacks = new GenerateCallbackObject();
 
 /**
  * Initialize the DOMCryptMethods object by getting the configuration object
@@ -1960,10 +1592,10 @@ CryptoConsole.prototype = {
     return mainBox;
   },
 
-  initComplete: function cc_initComplete(aMessage)
+  initComplete: function cc_initComplete(aMessage, aKeyID)
   {
     log("initComplete()");
-    // pprint(aMessage.default);
+    pprint(aMessage);
     // this.topLabel.setAttribute("value", "Initialization Complete: Your Public Key is:");
     // this.readTextBox.setAttribute("value", NulltxtMethods.config.default.pubKey);
     // this.decryptButton.disabled = true;
@@ -1971,8 +1603,11 @@ CryptoConsole.prototype = {
     this.uiDeck.selectedIndex = 0;
     this.publicKeyBox.label.setAttribute("value",
                                     "Initialization Complete: Your Public Key is:");
-    this.publicKeyBox.textBox.setAttribute("value",
-                                      NulltxtMethods.config.default.pubKey);
+    // get the key data:
+    let pubkey = NulltxtMethods.getPublicKeyByID(aKeyID);
+
+    this.publicKeyBox.textBox.setAttribute("value", pubkey);
+    // XXX: need to fireSuccess with the pubkey data and ID
   },
 
   pubKeyUI: function cc_pubKeyUI()
@@ -2056,7 +1691,7 @@ CryptoConsole.prototype = {
   handleMessage: function cc_handleMessage(aMessage)
   {
     log("handleMessage()");
-    // pprint(aMessage);
+    pprint(aMessage);
     if (this.idle && this.uiOpen) {
       // we can open this message in the UI
       this._message = aMessage;
@@ -2078,6 +1713,10 @@ CryptoConsole.prototype = {
         break;
       case "sign":
         this.updateUI("sign", aMessage);
+      case "keygen":
+        log("case keygen...");
+        this.updateUI("keygen", aMessage);
+        break;
       default:
         break;
       }
@@ -2102,3 +1741,11 @@ CryptoConsole.prototype = {
   // A Queue of cipherObjects to process
   queue: [],
 };
+
+function supportsString(aString)
+{
+  let str = Cc["@mozilla.org/supports-string;1"].
+    createInstance(Ci.nsISupportsString);
+  str.data = aString;
+  return str;
+}

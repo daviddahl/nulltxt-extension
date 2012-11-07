@@ -88,7 +88,7 @@ const PASSPHRASE = "32d0f984-841d-4e5e-b8ad-26f4928998c0"; // XXX: change this t
 
 const CONFIG_FILE_PATH = ".nulltxt.json";
 const PROFILE_DIR      = "ProfD";
-// const STRINGS_URI      = "chrome://nulltxt/locale/nulltxt.properties";;
+// const STRINGS_URI      = "chrome://nulltxt/locale/nulltxt.properties";
 
 const KEYPAIR_GENERATED   = "keypairGenerated";
 const DATA_ENCRYPTED      = "dataEncrypted";

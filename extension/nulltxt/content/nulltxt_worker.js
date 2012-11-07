@@ -52,10 +52,10 @@
  *
  */
 
-var DEBUG = true;
+var DEBUG = false;
 
 function log(aMessage) {
-  if (!DEBUG){
+  if (!DEBUG) {
     return;
   }
   var _msg = "nulltxt_worker: " + " " + aMessage + "\n";
@@ -64,6 +64,9 @@ function log(aMessage) {
 
 function pprint(aObj)
 {
+  if (!DEBUG) {
+    return;
+  }
   if (typeof aObj == "object") {
     for (let prop in aObj) {
       if (typeof aObj[prop] == "function") {
@@ -108,9 +111,11 @@ onmessage = function domcryptWorkerOnMessage(aEvent)
     postMessage({ hash: result, action: "sha256Complete" });
     break;
   case GENERATE_KEYPAIR:
-    result = WeaveCryptoWrapper.generateKeypair(aEvent.data.passphrase, aEvent.data.id);
+    result = WeaveCryptoWrapper.generateKeypair(aEvent.data.passphrase,
+                                                aEvent.data.id,
+                                                aEvent.data.requestID);
     log("KEYPAIR_GENERATED");
-    log(result.id);
+    log(result.id); // windowID
     postMessage({ keypairData: result, action: "keypairGenerated" });
     break;
   case ENCRYPT:
@@ -313,10 +318,11 @@ var WeaveCryptoWrapper = {
    *            created: <DATE CREATED>
    *          }
    */
-  generateKeypair: function WCW_generateKeypair(aPassphrase, aWindowID)
+  generateKeypair: function WCW_generateKeypair(aPassphrase, aWindowID, aRequestID)
   {
     log("WCW_generateKeypair()");
     log(aWindowID);
+    log(aRequestID);
 
     var pubOut = {};
     var privOut = {};
@@ -333,6 +339,7 @@ var WeaveCryptoWrapper = {
                       iv: iv,
                       created: Date.now(),
                       id: aWindowID,
+                      requestID: aRequestID,
                     };
       return results;
     }
@@ -1801,9 +1808,7 @@ var WeaveCrypto = {
     for (let i = 0; i < len; i++)
       expanded += String.fromCharCode(intData[i]);
 
-    // log(expanded);
     let base64 = btoa(expanded);
-    log("base64: " + base64);
     return base64;
   },
 

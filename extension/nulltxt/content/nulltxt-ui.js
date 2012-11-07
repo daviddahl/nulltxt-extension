@@ -58,6 +58,7 @@ let nulltxtUI = {
     let plainTxt = ui.writeBox.textBox.getAttribute("value");
     // We need the recipient's public key...
     let pubKey = ui._message.publicKey;
+    let keyID = ui._message.keyID;
     let recipient = ui._message.publicKey;
     let domReqID = ui._domReqID;
     let metaData = {
@@ -65,7 +66,7 @@ let nulltxtUI = {
       windowID: aWindowID,
       domReqID: domReqID,
     };
-    NulltxtMethods.hide(plainTxt, pubKey, metaData);
+    NulltxtMethods.hide(plainTxt, pubKey, keyID, metaData);
     // This calls the worker, does the crypto on a thread and
     // returns the cipherMessage to the NulltxtMethods object
   },
@@ -80,7 +81,10 @@ let nulltxtUI = {
       windowID: aWindowID,
       domReqID: domReqID,
     };
-    NulltxtMethods.show(cipherMessage, metaData, null);
+    NulltxtMethods.show(cipherMessage,
+                        cipherMessage.keyID,
+                        metaData,
+                        null);
     // disable this button...
     aButtonElement.setAttribute("disabled", true);
   },
