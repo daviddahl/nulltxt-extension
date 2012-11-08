@@ -117,13 +117,21 @@ function getStr(aName)
   return stringStorage.getStr(aName);
 }
 
+const DEBUG = true;
+
 function log(aMessage) {
+  if (!DEBUG) {
+    return;
+  }
   var _msg = "*** NulltxtMethods: " + aMessage + "\n";
   dump(_msg);
 }
 
 function pprint(aObj)
 {
+  if (!DEBUG) {
+    return;
+  }
   if (typeof aObj == "object") {
     for (let prop in aObj) {
       if (typeof aObj[prop] == "function") {
@@ -1588,11 +1596,14 @@ CryptoConsole.prototype = {
   getBrowserForContentWindow:
   function cc_getBrowserforContentWindow(aGBrowser, aContentWindow)
   {
+    log("getBrowserForContentWindow()");
     let browsers = aGBrowser.browsers;
     for (let browser of browsers) {
-      if (browser.contentWindow == aContentWindow)
-        log(browser);
+      if (browser.contentWindow == aContentWindow) {
+        log("browser: " + browser);
+        log("browser.contentWindow.location: " + browser.contentWindow.location);
         return browser;
+      }
     }
     return null;
   },
