@@ -59,9 +59,13 @@ div {
 #raw-object {
   font-size: 10px;
 }
+
   </style>
   <script src="jquery.js"></script>
   <script src="nulltxt-demo.js"></script>
+<link rel="stylesheet" href="http://yandex.st/highlightjs/7.3/styles/default.min.css">
+<script src="http://yandex.st/highlightjs/7.3/highlight.min.js"></script>
+  <script>hljs.initHighlightingOnLoad();</script>
   <script>
     $(document).ready(function(){
       browserSupport();
@@ -83,6 +87,12 @@ div {
 <p>
   <h2>Step 1: Key generation</h2>
   <p>
+    <h3>Example code</h3>
+    <pre>
+      <code>var request = window.navigator.bridge.getCipherObject({type: "keygen",format: "DER_BASE64"});
+request.onsuccess = function (){ */ this.result.publicKey is our key /* };
+request.onerror = function (error){};</code>
+    </pre>
     <button id="keygen-btn">Generate an RSA Keypair</button> 
   </p>
   <div id="keygen"></div>
@@ -91,6 +101,17 @@ div {
 <div id="section-encrypt">
   <h2>Step 2: Encryption</h2>
   <p>
+    <h3>Example code</h3>
+  <pre><code>var writeCipherObject = {
+  type: "write",
+  format: "DER_BASE64",
+  recipientName: "drzhivago",
+  publicKey: window._pubKey,
+  keyID: window._keyID 
+};
+var request = window.navigator.bridge.getCipherObject(writeCipherObject);
+request.onsuccess = function (){ */ this.result is our 'cipher object' /* };
+request.onerror = function (error){};</code></pre>
     <h3>Result</h3>
     <div id="writebox"></div>
   </p>
@@ -99,6 +120,7 @@ div {
     <div id="signature"></div>
   </p>
   <p>
+    <h3>Raw object</h3>
     <a name="raw-object"></a>
     <pre id="raw-object"></pre>
   </p>
@@ -112,6 +134,16 @@ div {
   <a name="decryption"></a>
   <h2>Step 3: Decryption</h2>
   <p>
+    <h3>Example code</h3>
+  <pre><code>var readCipherObject = window._cipherObj;
+readCipherObject.type = "read";
+readCipherObject.format = "DER_BASE64";
+readCipherObject.authorName = "drzhivago";
+readCipherObject.keyID = window._keyID;
+
+var request = window.navigator.bridge.getCipherObject(readCipherObject);
+request.onsuccess = function (){ */ this.result.verification contains the 'verification' boolean /* };
+request.onerror = function (error){};</code></pre>  
     <p>(Message will be read in browser chrome UI)</p>
     <h3>Signature Verified?</h3>
     <div id="verified-signature"></div>
