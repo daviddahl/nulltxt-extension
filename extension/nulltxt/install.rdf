@@ -4,7 +4,7 @@
   <Description about="urn:mozilla:install-manifest">
     <em:id>nulltxt@nulltxt.se</em:id>
     <em:name>Nulltxt</em:name>
-    <em:version>0.1</em:version>
+    <em:version>0.1.1</em:version>
     <em:description>Provides window.navigator.bridge.getCipherObject to each window</em:description>
     <em:creator>David Dahl</em:creator>
     <em:homepageURL>https://nulltxt.se/extension/</em:homepageURL>
