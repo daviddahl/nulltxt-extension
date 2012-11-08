@@ -5,32 +5,93 @@
   <meta name="description" content="nulltxt demo">
   <meta name="viewport" 
         content="width=device-width, initial-scale=1, maximum-scale=1">
+  <style>
+
+body {
+	margin: 0px;
+	padding: 10px;
+	background: #FFFFFF;
+	font-family: 'Abel', sans-serif;
+	font-size: 14px;
+	color: #969493;
+}
+
+h1, h2, h3 {
+	margin: 0;
+	padding: 0;
+	font-family: 'Abel', sans-serif;
+	font-weight: normal;
+	color: #000000;
+}
+
+h1 {
+	font-size: 2em;
+}
+
+h2 {
+	font-size: 1.6em;
+}
+
+h3 {
+	font-size: 1.4em;
+}
+
+h4 {
+  font-size: 0.9em;
+}
+
+p, ul, ol {
+	margin-top: 0;
+	line-height: 240%;
+}
+
+ul, ol {
+}
+
+a {
+	color: #474747;
+}
+
+div {
+  margin: 0.5em;
+}
+
+#raw-object {
+  font-size: 10px;
+}
+  </style>
   <script src="jquery.js"></script>
   <script src="nulltxt-demo.js"></script>
   <script>
     $(document).ready(function(){
+      browserSupport();
       $("#write-btn").click(write);
       $("#read-btn").click(read);
       $("#keygen-btn").click(keygen);
+      $("#section-encrypt").hide();
+      $("#section-decrypt").hide();
+      $("#section-signature").hide();
+      $("#section-hash").hide();
     });
   </script>
 </head>
 <body>
+<h3 id="warning">In order to run this demo, you will need to install the <strong>nulltxt</strong> <a href="https://addons.mozilla.org/en-US/firefox/addon/nulltxt/" target="_new">extension</a></h3>
 <p>
-  <h1>nulltxt demo</h1>
+  <h1><strong>nulltxt</strong>: using crypto 'near' the DOM</h1>
 </p>
 <p>
-  <h2>KeyGen</h2>
+  <h2>Step 1: Key generation</h2>
   <p>
-    <button id="keygen-btn">Generate Keypair</button> 
+    <button id="keygen-btn">Generate an RSA Keypair</button> 
   </p>
   <div id="keygen"></div>
 </p>
 
-<p>
-  <h2>Encryption</h2>
+<div id="section-encrypt">
+  <h2>Step 2: Encryption</h2>
   <p>
-    <h3>Cipher Text</h3>
+    <h3>Result</h3>
     <div id="writebox"></div>
   </p>
   <p>
@@ -42,14 +103,16 @@
     <pre id="raw-object"></pre>
   </p>
   <p>
+    <p>(Message will be written in browser chrome UI)</p>
     <button id="write-btn">Write Plain Text</button> 
   </p>
-</p>
-<p>
+</div>
+
+<div id="section-decrypt">
   <a name="decryption"></a>
-  <h2>Decryption</h2>
+  <h2>Step 3: Decryption</h2>
   <p>
-    <p>(Message will be read in Browser chrome UI)</p>
+    <p>(Message will be read in browser chrome UI)</p>
     <h3>Signature Verified?</h3>
     <div id="verified-signature"></div>
   </p>
@@ -57,6 +120,17 @@
     <a name="read-button"></a>
     <button id="read-btn">Read Cipher Data</button> 
   </p>
-</p>
+</div>
+
+<div id="section-signature">
+  <h2>Signature & Verification</h2>
+  <h4>(Coming Soon)</h4>
+</div>
+
+<div id="section-hash">
+  <h2>Hash</h2>
+  <h4>(Coming Soon)</h4>
+</div>
+
 </body>
 </html>
