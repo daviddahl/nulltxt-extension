@@ -63,21 +63,9 @@ div {
   </style>
   <script src="jquery.js"></script>
   <script src="nulltxt-demo.js"></script>
-<link rel="stylesheet" href="http://yandex.st/highlightjs/7.3/styles/default.min.css">
-<script src="http://yandex.st/highlightjs/7.3/highlight.min.js"></script>
-  <script>hljs.initHighlightingOnLoad();</script>
-  <script>
-    $(document).ready(function(){
-      browserSupport();
-      $("#write-btn").click(write);
-      $("#read-btn").click(read);
-      $("#keygen-btn").click(keygen);
-      $("#section-encrypt").hide();
-      $("#section-decrypt").hide();
-      $("#section-signature").hide();
-      $("#section-hash").hide();
-    });
-  </script>
+  <link rel="stylesheet" href="default.min.css">
+  <script src="highlight.min.js"></script>
+  <script src="ready.js"></script>
 </head>
 <body>
 <h3 id="warning">In order to run this demo, you will need to install the <strong>nulltxt</strong> <a href="https://addons.mozilla.org/en-US/firefox/addon/nulltxt/" target="_new">extension</a></h3>
