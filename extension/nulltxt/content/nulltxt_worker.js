@@ -114,7 +114,8 @@ onmessage = function domcryptWorkerOnMessage(aEvent)
     result = WeaveCryptoWrapper.generateKeypair(aEvent.data.passphrase,
                                                 aEvent.data.id,
                                                 aEvent.data.requestID);
-    log("KEYPAIR_GENERATED");
+    log("KEYPAIR_GENERATED\n");
+    pprint(result);
     log(result.id); // windowID
     postMessage({ keypairData: result, action: "keypairGenerated" });
     break;
@@ -224,8 +225,11 @@ onmessage = function domcryptWorkerOnMessage(aEvent)
     break;
   case HIDE:
     // encrypt
-    result = WeaveCryptoWrapper.encrypt(aEvent.data.plainText, aEvent.data.pubKey);
+    log("HIDE()\n");
+    log("plaintext: " + aEvent.data.plaintext);
 
+    result = WeaveCryptoWrapper.encrypt(aEvent.data.plainText, aEvent.data.pubKey);
+    log("result.content: " + result.content);
     let hash = WeaveCryptoWrapper.sha256Hash(result.content);
     log("hide - hash: " + hash);
     // sign  aHash, aPassphrase, aPrivateKey, aIV, aSalt
@@ -234,6 +238,7 @@ onmessage = function domcryptWorkerOnMessage(aEvent)
                                             aEvent.data.privKey,
                                             aEvent.data.iv,
                                             aEvent.data.salt);
+    log("signature: " + signature);
     result.signature = signature;
 
     postMessage({ cipherMessage: result,
@@ -258,7 +263,8 @@ onmessage = function domcryptWorkerOnMessage(aEvent)
                                                  aEvent.data.signature,
                                                  aEvent.data.cipherPubKey);
     if (!verification) {
-      throw new Error("SHOW: Cannot verify signature attached to the cipherMessage");
+      // throw new Error("SHOW: Cannot verify signature attached to the cipherMessage");
+      log("SHOW Error: Cannot verify signature attached to the cipherMessage");
     }
 
     ///////////
@@ -278,6 +284,9 @@ onmessage = function domcryptWorkerOnMessage(aEvent)
                                         aEvent.data.privKey,
                                         aEvent.data.salt,
                                         aEvent.data.iv);
+    log("DECRYPTED: ");
+    pprint(result);
+
     postMessage({ plainText: result,
                   verification: verification,
                   action: "dataShown",
@@ -703,19 +712,20 @@ const kHashAlgsResultLength = {
 
 
 var WeaveCrypto = {
-  debug      : true,
+  debug      : false,
   nss        : null,
   nss_t      : null,
 
   log : function (message) {
-    if (!this.debug)
+    if (!DEBUG) {
       return;
+    }
     dump("Nulltxt WeaveCrypto: " + message + "\n");
   },
 
   shutdown : function WC_shutdown()
   {
-    this.log("closing nsslib");
+    log("closing nsslib");
     this.nsslib.close();
   },
 
@@ -729,7 +739,7 @@ var WeaveCrypto = {
     nsslib = ctypes.open(this.fullPathToLib);
 
     this.nsslib = nsslib;
-    this.log("Initializing NSS types and function declarations...");
+    log("Initializing NSS types and function declarations...");
 
     this.nss = {};
     this.nss_t = {};
@@ -1134,7 +1144,7 @@ var WeaveCrypto = {
   keypairBits : 2048,
 
   encrypt : function(clearTextUCS2, symmetricKey, iv) {
-    this.log("encrypt() called");
+    log("encrypt() called");
 
     // js-ctypes autoconverts to a UTF8 buffer, but also includes a null
     // at the end which we don't want. Cast to make the length 1 byte shorter.
@@ -1156,7 +1166,7 @@ var WeaveCrypto = {
 
 
   decrypt : function(cipherText, symmetricKey, iv) {
-    this.log("decrypt() called");
+    log("decrypt() called");
 
     let inputUCS2 = "";
     if (cipherText.length)
@@ -1171,7 +1181,7 @@ var WeaveCrypto = {
     let outputBuffer = new ctypes.ArrayType(ctypes.unsigned_char, input.length)();
 
     outputBuffer = this._commonCrypt(input, outputBuffer, symmetricKey, iv, this.nss.CKA_DECRYPT);
-    this.log("outputBuffer: " + outputBuffer);
+    log("outputBuffer: " + outputBuffer);
     // outputBuffer contains UTF-8 data, let js-ctypes autoconvert that to a JS string.
     // XXX Bug 573842: wrap the string from ctypes to get a new string, so
     // we don't hit bug 573841.
@@ -1182,12 +1192,12 @@ var WeaveCrypto = {
 
 
   _commonCrypt : function (input, output, symmetricKey, iv, operation) {
-    this.log("_commonCrypt() called");
+    log("_commonCrypt() called");
     // Get rid of the base64 encoding and convert to SECItems.
     let keyItem = this.makeSECItem(symmetricKey, true);
-    this.log("keyItem: " + keyItem);
+    log("keyItem: " + keyItem);
     let ivItem  = this.makeSECItem(iv, true);
-    this.log("ivItem: " + ivItem);
+    log("ivItem: " + ivItem);
     // Determine which (padded) PKCS#11 mechanism to use.
     // EG: AES_128_CBC --> CKM_AES_CBC --> CKM_AES_CBC_PAD
     let mechanism = this.nss.PK11_AlgtagToMechanism(this.algorithm);
@@ -1232,10 +1242,10 @@ var WeaveCrypto = {
 
       actualOutputSize += tmpOutputSize2.value;
       let newOutput = ctypes.cast(output, ctypes.unsigned_char.array(actualOutputSize));
-      this.log(newOutput);
+      log(newOutput);
       return newOutput;
     } catch (e) {
-      this.log("_commonCrypt: failed: " + e);
+      log("_commonCrypt: failed: " + e);
       throw e;
     } finally {
       if (ctx && !ctx.isNull())
@@ -1250,7 +1260,7 @@ var WeaveCrypto = {
   },
 
   sign : function _sign(encodedPrivateKey, iv, salt, passphrase, hash) {
-    this.log("sign() called");
+    log("sign() called");
 
     let privKey, ivParam, wrappedPrivKey, ivItem,
     privKeyUsage, wrapMech, keyID, pbeKey, slot, _hash, sig;
@@ -1313,7 +1323,7 @@ var WeaveCrypto = {
   },
 
   verify : function _verify(encodedPublicKey, signature, hash) {
-    this.log("verify() called");
+    log("verify() called");
     let pubKeyData = this.makeSECItem(encodedPublicKey, true);
     let pubKey;
     let pubKeyInfo = this.nss.SECKEY_DecodeDERSubjectPublicKeyInfo(pubKeyData.address());
@@ -1355,6 +1365,7 @@ var WeaveCrypto = {
     this.byteCompress(srcData, srcArr);
 
     let destArr = new ctypes.ArrayType(ctypes.unsigned_char, resultLength)();
+    log("destArr: " + destArr);
     let result = this.nss.HASH_HashBuf(hashType, srcArr, destArr, srcArr.length);
     log("WC hash() result: " + result);
     if (result == -1) {
@@ -1365,7 +1376,7 @@ var WeaveCrypto = {
   },
 
   generateKeypair : function(passphrase, salt, iv, out_encodedPublicKey, out_wrappedPrivateKey) {
-    this.log("generateKeypair() called.");
+    log("generateKeypair() called.");
 
     let pubKey, privKey, slot;
     try {
@@ -1407,7 +1418,7 @@ var WeaveCrypto = {
       let encodedPublicKey = this.encodeBase64(derKey.contents.data, derKey.contents.len);
       out_encodedPublicKey.value = encodedPublicKey; // outparam
     } catch (e) {
-      this.log("generateKeypair: failed: " + e);
+      log("generateKeypair: failed: " + e);
       throw e;
     } finally {
       if (pubKey && !pubKey.isNull())
@@ -1421,7 +1432,7 @@ var WeaveCrypto = {
 
 
   generateRandomKey : function() {
-    this.log("generateRandomKey() called");
+    log("generateRandomKey() called");
     let encodedKey, keygenMech, keySize;
 
     // Doesn't NSS have a lookup function to do this?
@@ -1466,7 +1477,7 @@ var WeaveCrypto = {
 
       return this.encodeBase64(keydata.contents.data, keydata.contents.len);
     } catch (e) {
-      this.log("generateRandomKey: failed: " + e);
+      log("generateRandomKey: failed: " + e);
       throw e;
     } finally {
       if (randKey && !randKey.isNull())
@@ -1478,7 +1489,7 @@ var WeaveCrypto = {
 
 
   generateRandomIV : function() {
-    this.log("generateRandomIV() called");
+    log("generateRandomIV() called");
 
     let mech = this.nss.PK11_AlgtagToMechanism(this.algorithm);
     let size = this.nss.PK11_GetIVLength(mech);
@@ -1488,7 +1499,7 @@ var WeaveCrypto = {
 
 
   generateRandomBytes : function(byteCount) {
-    this.log("generateRandomBytes() called");
+    log("generateRandomBytes() called");
 
     // Temporary buffer to hold the generated data.
     let scratch = new ctypes.ArrayType(ctypes.unsigned_char, byteCount)();
@@ -1500,7 +1511,7 @@ var WeaveCrypto = {
 
 
   wrapSymmetricKey : function(symmetricKey, encodedPublicKey) {
-    this.log("wrapSymmetricKey() called");
+    log("wrapSymmetricKey() called");
 
     // Step 1. Get rid of the base64 encoding on the inputs.
 
@@ -1550,7 +1561,7 @@ var WeaveCrypto = {
       // Step 5. Base64 encode the wrapped key, cleanup, and return to caller.
       return this.encodeBase64(wrappedKey.data, wrappedKey.len);
     } catch (e) {
-      this.log("wrapSymmetricKey: failed: " + e);
+      log("wrapSymmetricKey: failed: " + e);
       throw e;
     } finally {
       if (pubKey && !pubKey.isNull())
@@ -1566,7 +1577,7 @@ var WeaveCrypto = {
 
 
   unwrapSymmetricKey : function(wrappedSymmetricKey, wrappedPrivateKey, passphrase, salt, iv) {
-    this.log("unwrapSymmetricKey() called");
+    log("unwrapSymmetricKey() called");
     let privKeyUsageLength = 1;
     let privKeyUsage = new ctypes.ArrayType(this.nss_t.CK_ATTRIBUTE_TYPE, privKeyUsageLength)();
     privKeyUsage[0] = this.nss.CKA_UNWRAP;
@@ -1636,7 +1647,7 @@ var WeaveCrypto = {
 
       return this.encodeBase64(symKeyData.contents.data, symKeyData.contents.len);
     } catch (e) {
-      this.log("unwrapSymmetricKey: failed: " + e);
+      log("unwrapSymmetricKey: failed: " + e);
       throw e;
     } finally {
       if (privKey && !privKey.isNull())
@@ -1654,7 +1665,7 @@ var WeaveCrypto = {
 
 
   rewrapPrivateKey : function(wrappedPrivateKey, oldPassphrase, salt, iv, newPassphrase) {
-    this.log("rewrapPrivateKey() called");
+    log("rewrapPrivateKey() called");
     let privKeyUsageLength = 1;
     let privKeyUsage = new ctypes.ArrayType(this.nss_t.CK_ATTRIBUTE_TYPE, privKeyUsageLength)();
     privKeyUsage[0] = this.nss.CKA_UNWRAP;
@@ -1700,7 +1711,7 @@ var WeaveCrypto = {
       // Step 4. Rewrap the private key with the new passphrase.
       return this._wrapPrivateKey(privKey, newPassphrase, salt, iv);
     } catch (e) {
-      this.log("rewrapPrivateKey: failed: " + e);
+      log("rewrapPrivateKey: failed: " + e);
       throw e;
     } finally {
       if (privKey && !privKey.isNull())
@@ -1716,7 +1727,7 @@ var WeaveCrypto = {
 
 
   verifyPassphrase : function(wrappedPrivateKey, passphrase, salt, iv) {
-    this.log("verifyPassphrase() called");
+    log("verifyPassphrase() called");
     let privKeyUsageLength = 1;
     let privKeyUsage = new ctypes.ArrayType(this.nss_t.CK_ATTRIBUTE_TYPE, privKeyUsageLength)();
     privKeyUsage[0] = this.nss.CKA_UNWRAP;
@@ -1758,7 +1769,7 @@ var WeaveCrypto = {
                                             null);  // wincx
       return (!privKey.isNull());
     } catch (e) {
-      this.log("verifyPassphrase: failed: " + e);
+      log("verifyPassphrase: failed: " + e);
       throw e;
     } finally {
       if (privKey && !privKey.isNull())
@@ -1824,7 +1835,7 @@ var WeaveCrypto = {
   },
 
   _deriveKeyFromPassphrase : function (passphrase, salt) {
-    this.log("_deriveKeyFromPassphrase() called.");
+    log("_deriveKeyFromPassphrase() called.");
     let passItem = this.makeSECItem(passphrase, false);
     let saltItem = this.makeSECItem(salt, true);
 
@@ -1853,7 +1864,7 @@ var WeaveCrypto = {
       if (symKey.isNull())
         throw new Error("PK11_PBEKeyGen failed");
     } catch (e) {
-      this.log("_deriveKeyFromPassphrase: failed: " + e);
+      log("_deriveKeyFromPassphrase: failed: " + e);
       throw e;
     } finally {
       if (algid && !algid.isNull())
@@ -1867,7 +1878,7 @@ var WeaveCrypto = {
 
 
   _wrapPrivateKey : function(privKey, passphrase, salt, iv) {
-    this.log("_wrapPrivateKey() called.");
+    log("_wrapPrivateKey() called.");
     let ivParam, pbeKey, wrappedKey;
     try {
       // Convert our passphrase to a symkey and get the IV in the form we want.
@@ -1899,7 +1910,7 @@ var WeaveCrypto = {
 
       return this.encodeBase64(wrappedKey.data, wrappedKey.len);
     } catch (e) {
-      this.log("_wrapPrivateKey: failed: " + e);
+      log("_wrapPrivateKey: failed: " + e);
       throw e;
     } finally {
       if (ivParam && !ivParam.isNull())

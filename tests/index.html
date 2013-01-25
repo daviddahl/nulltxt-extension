@@ -1,0 +1,38 @@
+<!doctype html>
+<head>
+  <meta charset="utf-8">
+  <title>nulltxt-extension tests</title>
+  <meta name="description" content="nulltxt comm page">
+  <meta name="viewport" 
+        content="width=device-width, initial-scale=1, maximum-scale=1">
+  <link rel="stylesheet" href="http://code.jquery.com/qunit/qunit-1.11.0.css">
+</head>
+<body>
+<div id="qunit"></div>
+<div id="qunit-fixture"></div>
+<script src="../demo-code/jquery.js"></script>
+<script src="http://code.jquery.com/qunit/qunit-1.11.0.js"></script>
+<script src="tests.js"></script>
+
+<div>
+  <button id="gen-key-1" onclick="keygen('gen1', 1);">GenKey 1</button>
+  <button id="gen-key-2" onclick="keygen('gen2', 2);">GenKey 2</button>
+  <button id="write-message-1" onclick="writeOneToTwo();">Write Message from 1 to 2</button>
+  <button id="read-message-2" onclick="readTwoFromOne();">Read Message from 1 to 2</button>
+</div>
+
+<h2>PubKey 1</h2>
+<div id="pub-key-1" class="result"></div>
+<h2>ID 1</h2>
+<div id="pub-key-1-ID" class="result"></div>
+<h2>PubKey 2</h2>
+<div id="pub-key-2" class="result"></div>
+<h2>ID 2</h2>
+<div id="pub-key-2-ID" class="result"></div>
+<h2>CipherObj (message) from 1 to 2</h2>
+<textarea id="cipher-obj-1" class="result"></textarea>
+<h2>CipherObj 2</h2>
+<textarea id="cipher-obj-2" class="result"></textarea>
+
+</body>
+</html>

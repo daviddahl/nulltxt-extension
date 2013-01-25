@@ -15,7 +15,12 @@ Cu.import("resource://gre/modules/Services.jsm");
 
 Cu.import("resource://nulltxt/NulltxtMethods.jsm");
 
+const DEBUG = false;
+
 function log(aMessage) {
+  if (!DEBUG) {
+    return;
+  }
   var _msg = "*** nulltxt-ui: " + aMessage + "\n";
   dump(_msg);
 }
@@ -31,6 +36,8 @@ function pprint(aObj)
     log(aObj);
   }
 }
+
+log("\n\nNULLTX UI LOADED\n\n");
 
 let nulltxtUI = {
   test: function ntui_test()
@@ -54,8 +61,10 @@ let nulltxtUI = {
   encryptMessageText:
   function ntui_encryptMessageText(aButtonElement, aWindowID)
   {
+    log("ntui_encryptMessageText\n");
     let ui = NulltxtMethods.UIWidgets[aWindowID];
-    let plainTxt = ui.writeBox.textBox.getAttribute("value");
+    let plainTxt = ui.writeBox.textBox.value;
+    log("plainTxt: " + plainTxt);
     // We need the recipient's public key...
     let pubKey = ui._message.publicKey;
     let keyID = ui._message.keyID;

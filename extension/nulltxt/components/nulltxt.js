@@ -11,13 +11,21 @@ let Ci = Components.interfaces;
 let Cc = Components.classes;
 let Cr = Components.results;
 
+const DEBUG = false;
+
 function log(aMessage) {
+  if (!DEBUG) {
+    return;
+  }
   var _msg = "Nulltxt: " + aMessage + "\n";
   dump(_msg);
 }
 
 function pprint(aObj)
 {
+  if (!DEBUG) {
+    return;
+  }
   if (typeof aObj == "object") {
     for (let prop in aObj) {
       log(prop + ": " + aObj[prop]);

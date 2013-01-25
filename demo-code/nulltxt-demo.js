@@ -47,9 +47,7 @@ function write()
     format: "DER_BASE64",
     recipientName: "drzhivago",
     publicKey: window._pubKey,
-    keyID: window._keyID,
-    // PREFILLED CONTENT FOR DEMO PURPOSES ONLY, THIS 'FEATURE' WILL BE REOMVED BEFORE ANY KIND OF RELEASE IS PUBLISHED
-    content: "THE  rue  du Coq  d'Or, Paris,  seven in the  morning. A succession of furious,  choking yells  from the street. Madame Monce, who kept the little hotel opposite mine, had come out on to the pavement to address a lodger on the third floor. Her bare feet were stuck into sabots and her grey hair was streaming down. \nMADAME MONCE: ‘SALOPE! SALOPE! How many times have I told you not tosquash bugs on the wallpaper? Do you think you’ve bought the hotel, eh? Whycan’t you throw them out of the window like everyone else? PUTAIN! SALOPE!’\nTHE WOMAN ON THE THIRD FLOOR: ‘VACHE!’\nThereupon a whole variegated chorus of yells, as windows were flung open on every side and half the street joined in the quarrel. They shut up abruptly ten minutes later, when a squadron of cavalry rode past and people stopped shouting to look at them."
+    keyID: window._keyID
   };
 
   var request = window.navigator.bridge.getCipherObject(writeCipherObject);
