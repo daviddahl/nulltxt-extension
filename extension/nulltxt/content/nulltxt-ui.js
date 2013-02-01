@@ -83,6 +83,7 @@ let nulltxtUI = {
   decryptCipherMessage:
   function ntui_decryptCipherMessage(aButtonElement, aWindowID)
   {
+    log("decryptCipherMessage()");
     let ui = NulltxtMethods.UIWidgets[aWindowID];
     let cipherMessage = ui._message;
     let domReqID = ui._domReqID;
@@ -100,6 +101,7 @@ let nulltxtUI = {
 
   closeUI: function ntui_closeUI(aButtonElement, aWindowID)
   {
+    log("closeUI()");
     NulltxtMethods.removeUI(aWindowID);
   },
 

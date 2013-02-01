@@ -192,6 +192,8 @@ const PASSPHRASE_VERIFIED = "passphraseVerified";
 const WORKER_ERROR        = "error";
 
 worker.onmessage = function DCM_worker_onmessage(aEvent) {
+  log("worker.onmessage");
+  log(aEvent.data.action);
   switch (aEvent.data.action) {
   case KEYPAIR_GENERATED:
     // Callbacks.handleGenerateKeypair(aEvent.data.keypairData);
@@ -208,9 +210,13 @@ worker.onmessage = function DCM_worker_onmessage(aEvent) {
     NulltxtMethods.returnCipherObject(aEvent.data);
     break;
   case DATA_HIDDEN:
+    log("\n\n Data Shown \n\n");
+    pprint(aEvent.data);
     NulltxtMethods.returnCipherObject(aEvent.data);
     break;
   case DATA_SHOWN:
+    log("\n\n Data Shown \n\n");
+    pprint(aEvent.data);
     NulltxtMethods.returnCipherObject(aEvent.data);
     break;
   case DATA_DECRYPTED:
@@ -883,6 +889,14 @@ var DOMCryptMethods = {
    */
   enterPassphrase: function DCM_enterPassphrase()
   {
+    log("enterPassphrase()\n");
+    log("Cached passphrase???\n\n");
+    log(this.passphraseCache.encryptedPassphrase);
+    if (this.passphraseCache.encryptedPassphrase) {
+      this.passphraseCache.lastEntered = Date.now();
+      return secretDecoderRing.decryptString(this.passphraseCache.encryptedPassphrase);
+    }
+
     // accept the passphrase and store it in memory - encrypted via SDR
     // remember the passphrase for 1 hour
     let passphrase = {};
@@ -892,7 +906,7 @@ var DOMCryptMethods = {
                                           passphrase, null, { value: false });
     if (passphrase.value) {
       log("passphrase.value: " + passphrase.value);
-      // TODO validate passphrase
+      // XXX !!!! TODO validate passphrase!!!
       this.passphraseCache.encryptedPassphrase =
         secretDecoderRing.encryptString(passphrase.value);
       this.passphraseCache.lastEntered = Date.now();
